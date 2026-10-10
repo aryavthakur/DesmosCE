@@ -1,0 +1,22 @@
+name: Provision CE compiler
+on:
+  push:
+    branches: [feat/native-core]
+    paths: [.github/workflows/bootstrap-toolchain.yml]
+permissions:
+  contents: read
+jobs:
+  compiler:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download upstream v15.0 compiler
+        run: |
+          curl --fail --location --retry 3 https://github.com/CE-Programming/toolchain/releases/download/v15.0/CEdev-Linux.tar.gz -o CEdev-Linux.tar.gz
+          sha256sum CEdev-Linux.tar.gz > CEdev-Linux.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ce-toolchain-v15
+          path: |
+            CEdev-Linux.tar.gz
+            CEdev-Linux.sha256
+          retention-days: 3
