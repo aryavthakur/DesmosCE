@@ -1,4 +1,4 @@
-name: Provision CE compiler
+name: Provision CE runtime libraries
 on:
   push:
     branches: [feat/native-core]
@@ -6,17 +6,17 @@ on:
 permissions:
   contents: read
 jobs:
-  compiler:
+  runtime:
     runs-on: ubuntu-24.04
     steps:
-      - name: Download upstream v15.0 compiler
+      - name: Download upstream v15.0 runtime libraries
         run: |
-          curl --fail --location --retry 3 https://github.com/CE-Programming/toolchain/releases/download/v15.0/CEdev-Linux.tar.gz -o CEdev-Linux.tar.gz
-          sha256sum CEdev-Linux.tar.gz > CEdev-Linux.sha256
+          curl --fail --location --retry 3 https://github.com/CE-Programming/libraries/releases/download/v15.0/clibs_separately_in_zip.zip -o ce-runtime-v15.zip
+          sha256sum ce-runtime-v15.zip > ce-runtime-v15.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ce-toolchain-v15
+          name: ce-runtime-v15
           path: |
-            CEdev-Linux.tar.gz
-            CEdev-Linux.sha256
+            ce-runtime-v15.zip
+            ce-runtime-v15.sha256
           retention-days: 3
