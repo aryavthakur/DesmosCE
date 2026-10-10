@@ -23,6 +23,7 @@ jobs:
       - name: Host tests with address and undefined-behavior sanitizers
         run: |
           mkdir -p build
+          python3 tools/check_matrix.py | tee build/feature-matrix-check.log
           make -f Makefile.host test 2>&1 | tee build/host-tests.log
       - name: Independent numerical references and real-renderer previews
         run: |
@@ -38,28 +39,30 @@ jobs:
       - name: Compile native eZ80 program and enforce static memory budget
         run: |
           make -j2 2>&1 | tee build/native-build.log
+          python3 tools/normalize_binary.py
           python3 tools/check_size.py
-      - name: Package binary, complete application source and dependency notices
+      - name: Package binary, application source and dependency notices
         run: |
           mkdir -p build/release/source build/release/verification build/release/licenses build/release/dependencies
           git archive HEAD | tar -x -C build/release/source
           git rev-parse HEAD > build/release/SOURCE_COMMIT.txt
           cp bin/DESMOSCE.8xp bin/DESMOSCE.map build/release/
-          cp build/host-tests.log build/reference.log build/native-build.log build/memory-report.json build/reference-results.json build/release/verification/
+          cp build/*.log build/memory-report.json build/reference-results.json build/release/verification/
           cp -r build/preview build/release/verification/host-renderer-preview
           cp /tmp/CEdev/binutils/license/COPYING3 build/release/licenses/GPL-3.0.txt
           cp /tmp/CEdev/binutils/license/COPYING3.LIB build/release/licenses/LGPL-3.0.txt
-          curl --fail --location --retry 3 https://codeload.github.com/CE-Programming/toolchain/tar.gz/refs/tags/v15.0 -o build/release/dependencies/CE-toolchain-v15.0-source.tar.gz
-          cp source-does-not-exist /tmp/unused 2>/dev/null || true
-          if [ -f THIRD_PARTY_NOTICES.md ]; then cp THIRD_PARTY_NOTICES.md build/release/; fi
-          if [ -f docs/installation.md ]; then cp docs/installation.md build/release/INSTALLATION.md; fi
-          if [ -f LICENSE ]; then cp LICENSE build/release/; fi
-          printf '%s\n' 'EXPERIMENTAL ALPHA: native cross-build and host tests only.' 'No physical calculator or ROM-backed emulator execution is claimed.' 'Host SVG previews are not calculator screenshots.' 'Runtime libraries are separate upstream downloads; see INSTALLATION.md.' > build/release/READ-ME-FIRST.txt
+          curl --fail --location --retry 3 https://codeload.github.com/CE-Programming/toolchain/tar.gz/refs/tags/v15.0 -o /tmp/upstream-source.tar.gz
+          python3 tools/package_dependency_source.py /tmp/upstream-source.tar.gz build/release/dependencies/CE-toolchain-v15.0-source.tar.gz
+          cp THIRD_PARTY_NOTICES.md LICENSE build/release/
+          cp docs/installation.md build/release/INSTALLATION.md
+          cp docs/keymap.md build/release/keymap.md
+          printf '%s\n' 'EXPERIMENTAL ALPHA: native cross-build and host tests only.' 'No physical calculator or ROM-backed emulator execution is claimed.' 'Host SVG previews are not calculator screenshots.' 'Runtime libraries are separate upstream downloads; see INSTALLATION.md.' 'Full documentation and build workflow are in source/.' > build/release/READ-ME-FIRST.txt
           (cd build/release && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
           name: DesmosCE-experimental-alpha
           path: build/release/
+          include-hidden-files: true
           retention-days: 30
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
