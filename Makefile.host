@@ -1,0 +1,21 @@
+CC ?= cc
+CFLAGS ?= -std=c11 -O1 -g -Wall -Wextra -Wno-misleading-indentation
+SANITIZERS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
+SOURCES = src/parser.c src/model.c src/eval.c src/regression.c src/storage.c src/analysis.c src/editor.c src/graph.c src/app.c
+TESTS = core editor graph app robust
+.PHONY: test reference preview clean
+build:
+	mkdir -p build
+build/test_%: tests/test_%.c $(SOURCES) include/dce.h include/ui.h | build
+	$(CC) $(CFLAGS) $(SANITIZERS) -Iinclude $< $(SOURCES) -lm -o $@
+test: $(addprefix build/test_,$(TESTS))
+	@set -e; for name in $(TESTS); do ./build/test_$$name; done
+reference:
+	python3 tools/reference_check.py
+build/render_host: tools/render_host.c $(SOURCES) include/dce.h include/ui.h | build
+	$(CC) $(CFLAGS) -Iinclude $< $(SOURCES) -lm -o $@
+preview: build/render_host
+	mkdir -p build/preview
+	@set -e; for i in 0 1 2 3 4 5 6 7; do ./build/render_host $$i build/preview/scene-$$i.svg; done
+clean:
+	rm -rf build
