@@ -1,0 +1,70 @@
+name: Test and build DesmosCE
+on:
+  push:
+    branches: [main, feat/native-core]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: desmosce-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Host tests with address and undefined-behavior sanitizers
+        run: |
+          mkdir -p build
+          make -f Makefile.host test 2>&1 | tee build/host-tests.log
+      - name: Independent numerical references and real-renderer previews
+        run: |
+          python3 -m pip install numpy==2.2.6 scipy==1.15.3
+          make -f Makefile.host reference 2>&1 | tee build/reference.log
+          make -f Makefile.host preview
+      - name: Install pinned CE C toolchain
+        run: |
+          curl --fail --location --retry 3 https://github.com/CE-Programming/toolchain/releases/download/v15.0/CEdev-Linux.tar.gz -o /tmp/CEdev-Linux.tar.gz
+          echo '85f4794a617b134249a9cba8a084414e86e16d2a68377b1d72ace30c636dbdf9  /tmp/CEdev-Linux.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/CEdev-Linux.tar.gz -C /tmp
+          echo '/tmp/CEdev/bin' >> "$GITHUB_PATH"
+      - name: Compile native eZ80 program and enforce static memory budget
+        run: |
+          make -j2 2>&1 | tee build/native-build.log
+          python3 tools/check_size.py
+      - name: Package binary, complete application source and dependency notices
+        run: |
+          mkdir -p build/release/source build/release/verification build/release/licenses build/release/dependencies
+          git archive HEAD | tar -x -C build/release/source
+          git rev-parse HEAD > build/release/SOURCE_COMMIT.txt
+          cp bin/DESMOSCE.8xp bin/DESMOSCE.map build/release/
+          cp build/host-tests.log build/reference.log build/native-build.log build/memory-report.json build/reference-results.json build/release/verification/
+          cp -r build/preview build/release/verification/host-renderer-preview
+          cp /tmp/CEdev/binutils/license/COPYING3 build/release/licenses/GPL-3.0.txt
+          cp /tmp/CEdev/binutils/license/COPYING3.LIB build/release/licenses/LGPL-3.0.txt
+          curl --fail --location --retry 3 https://codeload.github.com/CE-Programming/toolchain/tar.gz/refs/tags/v15.0 -o build/release/dependencies/CE-toolchain-v15.0-source.tar.gz
+          cp source-does-not-exist /tmp/unused 2>/dev/null || true
+          if [ -f THIRD_PARTY_NOTICES.md ]; then cp THIRD_PARTY_NOTICES.md build/release/; fi
+          if [ -f docs/installation.md ]; then cp docs/installation.md build/release/INSTALLATION.md; fi
+          if [ -f LICENSE ]; then cp LICENSE build/release/; fi
+          printf '%s\n' 'EXPERIMENTAL ALPHA: native cross-build and host tests only.' 'No physical calculator or ROM-backed emulator execution is claimed.' 'Host SVG previews are not calculator screenshots.' 'Runtime libraries are separate upstream downloads; see INSTALLATION.md.' > build/release/READ-ME-FIRST.txt
+          (cd build/release && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DesmosCE-experimental-alpha
+          path: build/release/
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: DesmosCE-failure-logs
+          path: build/*.log
+          retention-days: 7
