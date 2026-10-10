@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Download pinned formatter wheel
-        run: python3 -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest wheels
+        run: |
+          python3 -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest wheels
       - uses: actions/upload-artifact@v4
         with:
           name: clang-format-18
