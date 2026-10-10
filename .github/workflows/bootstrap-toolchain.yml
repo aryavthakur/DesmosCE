@@ -1,4 +1,4 @@
-name: Provision CE runtime libraries
+name: Provision source formatter
 on:
   push:
     branches: [feat/native-core]
@@ -6,17 +6,13 @@ on:
 permissions:
   contents: read
 jobs:
-  runtime:
+  formatter:
     runs-on: ubuntu-24.04
     steps:
-      - name: Download upstream v15.0 runtime libraries
-        run: |
-          curl --fail --location --retry 3 https://github.com/CE-Programming/libraries/releases/download/v15.0/clibs_separately_in_zip.zip -o ce-runtime-v15.zip
-          sha256sum ce-runtime-v15.zip > ce-runtime-v15.sha256
+      - name: Download pinned formatter wheel
+        run: python3 -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest wheels
       - uses: actions/upload-artifact@v4
         with:
-          name: ce-runtime-v15
-          path: |
-            ce-runtime-v15.zip
-            ce-runtime-v15.sha256
+          name: clang-format-18
+          path: wheels/*.whl
           retention-days: 3
